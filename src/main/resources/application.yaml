@@ -1,3 +1,8 @@
 spring:
   application:
     name: bookstore
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/bookstore}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:0000}
