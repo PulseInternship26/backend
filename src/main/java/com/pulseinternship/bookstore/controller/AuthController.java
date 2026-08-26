@@ -1,4 +1,4 @@
-package com.pulseinternship.bookstore.auth;
+package com.pulseinternship.bookstore.controller;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
