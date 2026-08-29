@@ -1,0 +1,158 @@
+@host = http://localhost:8080
+
+### 1. Valid registration
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123",
+  "phone": "+201001234567"
+}
+
+### 2. Duplicate email
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123",
+  "phone": "+201001234567"
+}
+
+### 3. Non-matching passwords
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "mismatch@example.com",
+  "password": "Password123",
+  "confirmPassword": "Different123",
+  "phone": "+201001234568"
+}
+
+### 4. Invalid email
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "password": "Password123",
+  "confirmPassword": "Password123",
+  "phone": "+201001234569"
+}
+
+### 5. Short password
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "short@example.com",
+  "password": "short",
+  "confirmPassword": "short",
+  "phone": "+201001234570"
+}
+
+### 6. Missing required phone
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "missing@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123"
+}
+
+### 7. Invalid phone
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "phone@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123",
+  "phone": "abc"
+}
+
+### 8. Malformed JSON
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "broken@example.com",
+  "password":
+}
+
+### 9. Attempted ADMIN registration
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "attempted-admin@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123",
+  "phone": "+201001234571",
+  "role": "ADMIN"
+}
+
+### 10. Valid login and save JWT
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.token);
+%}
+
+### 11. Wrong password
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "WrongPassword123"
+}
+
+### 12. Nonexistent email
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "does-not-exist@example.com",
+  "password": "Password123"
+}
+
+### 13. Invalid email format
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "password": "Password123"
+}
+
+### 14. Blank password
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": ""
+}
+
+### 15. Current user with saved JWT
+GET {{host}}/api/users/me
+Authorization: Bearer {{auth_token}}
+
+### 16. Current user without JWT
+GET {{host}}/api/users/me
+
+### 17. Current user with invalid JWT
+GET {{host}}/api/users/me
+Authorization: Bearer invalid-token
