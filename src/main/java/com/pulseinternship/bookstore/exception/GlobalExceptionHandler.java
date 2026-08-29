@@ -53,6 +53,31 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // Book not found
+    @ExceptionHandler(BookNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBookNotFoundException(BookNotFoundException ex) {
+        return new ResponseEntity<>(
+                new ErrorResponse(
+                        HttpStatus.NOT_FOUND.value(),
+                        "404 Not Found: " + ex.getMessage(),
+                        LocalDateTime.now()
+                ),
+                HttpStatus.NOT_FOUND
+        );
+    }
+
+    @ExceptionHandler(AdminNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAdminNotFoundException(AdminNotFoundException ex) {
+        return new ResponseEntity<>(
+                new ErrorResponse(
+                        HttpStatus.NOT_FOUND.value(),
+                        "404 Not Found: " + ex.getMessage(),
+                        LocalDateTime.now()
+                ),
+                HttpStatus.NOT_FOUND
+        );
+    }
+
     // Duplicate Email
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEmailException(
