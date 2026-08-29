@@ -1,9 +1,9 @@
 package com.pulseinternship.bookstore.model.dtos;
 
-import com.pulseinternship.bookstore.model.enums.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record RegisterRequestDto(
         @NotBlank
@@ -11,13 +11,15 @@ public record RegisterRequestDto(
         String email,
 
         @NotBlank
+        @Size(min = 8, max = 50)
         String password,
 
         @NotBlank
-        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number")
-        String phone,
+        @Size(min = 8, max = 50)
+        String confirmPassword,
 
         @NotBlank
-        UserRole role
+        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number")
+        String phone
 ) {
 }

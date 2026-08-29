@@ -4,7 +4,7 @@ import com.pulseinternship.bookstore.model.enums.UserRole;
 
 public record AuthResponseDto(
         String token,
-        Long id,
+        String email,
         UserRole role,
         long expiresIn
 ) {

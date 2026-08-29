@@ -1,18 +1,31 @@
 package com.pulseinternship.bookstore.controller;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.pulseinternship.bookstore.model.dtos.AuthResponseDto;
+import com.pulseinternship.bookstore.model.dtos.LoginRequestDto;
+import com.pulseinternship.bookstore.model.dtos.RegisterRequestDto;
+import com.pulseinternship.bookstore.model.dtos.UserResponseDto;
+import com.pulseinternship.bookstore.service.AuthService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private final AuthService authService;
+
     @PostMapping("/login")
-    public String login() {
-        return "Login";
+    @ResponseStatus(HttpStatus.OK)
+    public AuthResponseDto login(@Valid @RequestBody LoginRequestDto loginRequestDto) {
+        return authService.login(loginRequestDto);
     }
+
     @PostMapping("/register")
-    public String register() {
-        return "Register";
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserResponseDto register(@Valid @RequestBody RegisterRequestDto registerRequestDto) {
+        return authService.register(registerRequestDto);
     }
 }

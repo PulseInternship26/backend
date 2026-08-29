@@ -1,4 +1,4 @@
-package com.pulseinternship.bookstore.auth;
+package com.pulseinternship.bookstore.service;
 
 import com.pulseinternship.bookstore.exception.EmailNotFoundException;
 import com.pulseinternship.bookstore.model.entities.User;

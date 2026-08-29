@@ -6,7 +6,11 @@ spring:
     url: ${DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/bookstore}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:0000}
+  jpa:
+    hibernate:
+      ddl-auto: update
 
 jwt:
-  secret: ${JWT_SECRET:super-secret-key-that-isnt-used-in-prod-:P}
+  # INSECURE LOCAL FALLBACK. NEVER USE IN PRODUCTION.
+  secret: ${JWT_SECRET:RE9fTk9UX1VTRV9JTl9QUk9EVUNUSU9OXzEyMzQ1Njc=}
   ttl-seconds: ${JWT_TTL:3600}

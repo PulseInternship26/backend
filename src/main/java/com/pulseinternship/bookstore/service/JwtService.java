@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import java.util.Date;
 public class JwtService {
 
     private final SecretKey key;
+
+    @Getter
     private final long ttlSeconds;
 
     public JwtService(@Value("${jwt.secret}") String secret,
@@ -24,7 +27,6 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         this.ttlSeconds = ttlSeconds;
     }
-
 
     public String generateToken(UserDetails user) {
         Instant now = Instant.now();
