@@ -1,13 +1,26 @@
 {
   "info": {
     "_postman_id": "db23df1a-3a35-4ab3-81ec-98e1c2ca9919",
-    "name": "Bookstore - Book Feature",
-    "description": "Book-focused API tests. Run Setup & Authentication first. Public registration creates only USER accounts, so adminEmail/adminPassword must belong to an existing ADMIN. Login scripts save JWTs; Create Book saves bookId for later requests.",
+    "name": "Bookstore - Authentication & Books",
+    "description": "Executable authentication and book API checks. No Postman environment is required. Start the API with the dev seed credentials, update collection variables if needed, and run folders in numbered order. Login and create requests save tokens and bookId for later requests.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "userEmail", "value": "postman-user@example.com" },
+    { "key": "userPassword", "value": "Password123" },
+    { "key": "userPhone", "value": "+201001234567" },
+    { "key": "adminEmail", "value": "admin@bookstore.local" },
+    { "key": "adminPassword", "value": "Admin123" },
+    { "key": "userToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "bookId", "value": "" },
+    { "key": "missingBookId", "value": "999999999" }
+  ],
   "item": [
     {
-      "name": "1 - Setup & Authentication",
+      "name": "1 - Authentication",
+      "description": "Registers a reusable USER, captures USER and ADMIN tokens, and verifies the current-user endpoint.",
       "item": [
         {
           "name": "Register USER",
@@ -19,6 +32,15 @@
                 "exec": [
                   "pm.test(\"Status is 201 or user already exists\", function () {",
                   "    pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test(\"Response has the expected shape\", function () {",
+                  "    const body = pm.response.json();",
+                  "    if (pm.response.code === 201) {",
+                  "        pm.expect(body).to.include.keys(\"id\", \"email\", \"phone\", \"role\");",
+                  "        pm.expect(body.role).to.eql(\"USER\");",
+                  "    } else {",
+                  "        pm.expect(body).to.include.keys(\"status\", \"message\", \"timestamp\");",
+                  "    }",
                   "});"
                 ]
               }
@@ -32,7 +54,8 @@
               "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"confirmPassword\": \"{{userPassword}}\",\n  \"phone\": \"{{userPhone}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/auth/register"
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Public registration always creates a USER. The 409 assertion makes this setup request safe to rerun."
           }
         },
         {
@@ -46,8 +69,11 @@
                   "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
                   "if (pm.response.code === 200) {",
                   "    const body = pm.response.json();",
-                  "    pm.environment.set(\"userToken\", body.token);",
-                  "    pm.test(\"Role is USER\", function () { pm.expect(body.role).to.eql(\"USER\"); });",
+                  "    pm.collectionVariables.set(\"userToken\", body.token);",
+                  "    pm.test(\"Login response is a USER token\", function () {",
+                  "        pm.expect(body).to.include.keys(\"token\", \"email\", \"role\", \"expiresIn\");",
+                  "        pm.expect(body.role).to.eql(\"USER\");",
+                  "    });",
                   "}"
                 ]
               }
@@ -65,8 +91,32 @@
           }
         },
         {
+          "name": "Get current USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Current account is the logged-in USER\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.include.keys(\"id\", \"email\", \"phone\", \"role\");",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get(\"userEmail\"));",
+                  "    pm.expect(body.role).to.eql(\"USER\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/api/users/me"
+          }
+        },
+        {
           "name": "Login ADMIN - save adminToken",
-          "description": "Requires an existing ADMIN account. This collection intentionally does not create or manage admins.",
           "event": [
             {
               "listen": "test",
@@ -76,8 +126,11 @@
                   "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
                   "if (pm.response.code === 200) {",
                   "    const body = pm.response.json();",
-                  "    pm.environment.set(\"adminToken\", body.token);",
-                  "    pm.test(\"Role is ADMIN\", function () { pm.expect(body.role).to.eql(\"ADMIN\"); });",
+                  "    pm.collectionVariables.set(\"adminToken\", body.token);",
+                  "    pm.test(\"Login response is an ADMIN token\", function () {",
+                  "        pm.expect(body).to.include.keys(\"token\", \"email\", \"role\", \"expiresIn\");",
+                  "        pm.expect(body.role).to.eql(\"ADMIN\");",
+                  "    });",
                   "}"
                 ]
               }
@@ -91,16 +144,72 @@
               "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Defaults to the ADMIN created by DevDataSeeder."
+          }
+        },
+        {
+          "name": "Login with wrong password returns 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error has the standard shape\", function () {",
+                  "    pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"DefinitelyWrong123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
             "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Registration password mismatch returns 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error has the standard shape\", function () {",
+                  "    pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"mismatch@example.com\",\n  \"password\": \"Password123\",\n  \"confirmPassword\": \"Different123\",\n  \"phone\": \"+201001234567\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register"
           }
         }
       ]
     },
     {
       "name": "2 - Book CRUD Happy Path",
+      "description": "Uses the tokens from folder 1. Create Book stores bookId for the detail, update, and delete checks.",
       "item": [
         {
-          "name": "GET all books as USER",
+          "name": "List books as USER",
           "event": [
             {
               "listen": "test",
@@ -108,10 +217,13 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-                  "pm.test(\"Response is a summary array\", function () {",
+                  "pm.test(\"Response contains book summaries\", function () {",
                   "    const body = pm.response.json();",
                   "    pm.expect(body).to.be.an(\"array\");",
-                  "    if (body.length > 0) pm.expect(body[0]).not.to.have.property(\"description\");",
+                  "    if (body.length > 0) {",
+                  "        pm.expect(body[0]).to.include.keys(\"id\", \"title\", \"author\", \"category\", \"price\", \"imageUrl\");",
+                  "        pm.expect(body[0]).not.to.have.property(\"description\");",
+                  "    }",
                   "});"
                 ]
               }
@@ -119,12 +231,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }],
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
             "url": "{{baseUrl}}/api/books"
           }
         },
         {
-          "name": "POST create book as ADMIN - save bookId",
+          "name": "Create book as ADMIN - save bookId",
           "event": [
             {
               "listen": "test",
@@ -134,8 +246,8 @@
                   "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
                   "if (pm.response.code === 201) {",
                   "    const body = pm.response.json();",
-                  "    pm.environment.set(\"bookId\", body.id);",
-                  "    pm.test(\"Created response contains detail fields\", function () {",
+                  "    pm.collectionVariables.set(\"bookId\", body.id);",
+                  "    pm.test(\"Created response contains full book details\", function () {",
                   "        pm.expect(body).to.include.keys(\"id\", \"title\", \"author\", \"category\", \"price\", \"description\", \"imageUrl\");",
                   "    });",
                   "}"
@@ -147,7 +259,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
@@ -158,7 +270,7 @@
           }
         },
         {
-          "name": "GET created book as USER",
+          "name": "Get created book as USER",
           "event": [
             {
               "listen": "test",
@@ -166,8 +278,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-                  "pm.test(\"Returned ID matches bookId\", function () {",
-                  "    pm.expect(String(pm.response.json().id)).to.eql(pm.environment.get(\"bookId\"));",
+                  "pm.test(\"Returned details match bookId\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(String(body.id)).to.eql(String(pm.collectionVariables.get(\"bookId\")));",
+                  "    pm.expect(body).to.have.property(\"description\");",
                   "});"
                 ]
               }
@@ -175,12 +289,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }],
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
             "url": "{{baseUrl}}/api/books/{{bookId}}"
           }
         },
         {
-          "name": "PUT update book as ADMIN",
+          "name": "Update book as ADMIN",
           "event": [
             {
               "listen": "test",
@@ -201,18 +315,18 @@
             "method": "PUT",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Clean Code - Updated\",\n  \"author\": \"Robert C. Martin\",\n  \"category\": \"Software Engineering\",\n  \"price\": 34.99,\n  \"description\": \"An updated test description.\",\n  \"imageUrl\": \"https://example.com/clean-code-updated.jpg\"\n}",
+              "raw": "{\n  \"title\": \"Clean Code - Updated\",\n  \"author\": \"Robert C. Martin\",\n  \"category\": \"Software Engineering\",\n  \"price\": 34.99,\n  \"description\": \"An updated collection test description.\",\n  \"imageUrl\": \"https://example.com/clean-code-updated.jpg\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": "{{baseUrl}}/api/books/{{bookId}}"
           }
         },
         {
-          "name": "DELETE book as ADMIN",
+          "name": "Delete book as ADMIN",
           "event": [
             {
               "listen": "test",
@@ -224,12 +338,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": "{{baseUrl}}/api/books/{{bookId}}"
           }
         },
         {
-          "name": "GET deleted book returns 404",
+          "name": "Get deleted book returns 404",
           "event": [
             {
               "listen": "test",
@@ -237,7 +351,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });",
-                  "pm.test(\"Standard error shape\", function () {",
+                  "pm.test(\"Error has the standard shape\", function () {",
                   "    pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\");",
                   "});"
                 ]
@@ -246,7 +360,7 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }],
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
             "url": "{{baseUrl}}/api/books/{{bookId}}"
           }
         }
@@ -256,18 +370,40 @@
       "name": "3 - Validation & Authorization",
       "item": [
         {
-          "name": "GET books without JWT returns 401",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"] } }],
+          "name": "List books without JWT returns 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error has the standard shape\", function () { pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\"); });"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/books" }
         },
         {
-          "name": "POST book as USER returns 403",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });"] } }],
+          "name": "Create book as USER returns 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Error has the standard shape\", function () { pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\"); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
             ],
             "body": {
               "mode": "raw",
@@ -278,7 +414,49 @@
           }
         },
         {
-          "name": "POST invalid book as ADMIN returns 400",
+          "name": "Update book as USER returns 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Forbidden Update\",\n  \"author\": \"Test Author\",\n  \"category\": \"Test\",\n  \"price\": 10.00,\n  \"description\": \"A USER cannot update books.\",\n  \"imageUrl\": \"https://example.com/forbidden.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/books/{{missingBookId}}"
+          }
+        },
+        {
+          "name": "Delete book as USER returns 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/api/books/{{missingBookId}}"
+          }
+        },
+        {
+          "name": "Create invalid book as ADMIN returns 400",
           "event": [
             {
               "listen": "test",
@@ -286,9 +464,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\"Standard error shape\", function () {",
-                  "    pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\");",
-                  "});"
+                  "pm.test(\"Error has the standard shape\", function () { pm.expect(pm.response.json()).to.include.keys(\"status\", \"message\", \"timestamp\"); });"
                 ]
               }
             }
@@ -297,7 +473,7 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
@@ -308,11 +484,61 @@
           }
         },
         {
-          "name": "GET unknown book returns 404",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"] } }],
+          "name": "Get unknown book returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }],
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/api/books/{{missingBookId}}"
+          }
+        },
+        {
+          "name": "Update unknown book as ADMIN returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Missing Book\",\n  \"author\": \"Test Author\",\n  \"category\": \"Test\",\n  \"price\": 10.00,\n  \"description\": \"The target does not exist.\",\n  \"imageUrl\": \"https://example.com/missing.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/books/{{missingBookId}}"
+          }
+        },
+        {
+          "name": "Delete unknown book as ADMIN returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": "{{baseUrl}}/api/books/{{missingBookId}}"
           }
         }

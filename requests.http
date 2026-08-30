@@ -1,28 +1,106 @@
-@host = http://localhost:8080
+###
+### Bookstore API - Combined HTTP Client Collection
+###
+### Run setup requests in order before requests that use captured variables.
+### Dynamic variables captured by scripts:
+###   user_token, admin_token, book_id, created_admin_id
+###
 
-### 1. Valid registration
+@host = http://localhost:8081
+@userEmail = user@example.com
+@userPassword = Password123
+@userPhone = +201001234567
+@adminEmail = admin@bookstore.local
+@adminPassword = Admin123
+@missingBookId = 999999999
+@missingAdminId = 999999999
+
+###############################################################################
+# 1. AUTHENTICATION SETUP
+###############################################################################
+
+### Register USER
+### Expected: 201 on first run, 409 if the user already exists
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
-  "password": "Password123",
-  "confirmPassword": "Password123",
-  "phone": "+201001234567"
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}",
+  "confirmPassword": "{{userPassword}}",
+  "phone": "{{userPhone}}"
 }
 
-### 2. Duplicate email
+> {%
+    client.test("Registration succeeds or user already exists", function () {
+        client.assert(response.status === 201 || response.status === 409,
+            "Expected 201 or 409, got " + response.status);
+    });
+%}
+
+### Login USER and save user_token
+### Expected: 200, role USER
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+> {%
+    client.test("USER login returns 200", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    if (response.status === 200) {
+        client.global.set("user_token", response.body.token);
+        client.test("Login role is USER", function () {
+            client.assert(response.body.role === "USER", "Expected USER role");
+        });
+    }
+%}
+
+### Login ADMIN and save admin_token
+### Defaults to the ADMIN created by DevDataSeeder.
+### Expected: 200, role ADMIN
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+> {%
+    client.test("ADMIN login returns 200", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    if (response.status === 200) {
+        client.global.set("admin_token", response.body.token);
+        client.test("Login role is ADMIN", function () {
+            client.assert(response.body.role === "ADMIN", "Expected ADMIN role");
+        });
+    }
+%}
+
+###############################################################################
+# 2. REGISTRATION AND LOGIN VALIDATION
+###############################################################################
+
+### Duplicate email
+### Expected: 409
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
-  "password": "Password123",
-  "confirmPassword": "Password123",
-  "phone": "+201001234567"
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}",
+  "confirmPassword": "{{userPassword}}",
+  "phone": "{{userPhone}}"
 }
 
-### 3. Non-matching passwords
+### Non-matching passwords
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -33,7 +111,8 @@ Content-Type: application/json
   "phone": "+201001234568"
 }
 
-### 4. Invalid email
+### Invalid registration email
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -44,7 +123,8 @@ Content-Type: application/json
   "phone": "+201001234569"
 }
 
-### 5. Short password
+### Short registration password
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -55,7 +135,8 @@ Content-Type: application/json
   "phone": "+201001234570"
 }
 
-### 6. Missing required phone
+### Missing required phone
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -65,7 +146,8 @@ Content-Type: application/json
   "confirmPassword": "Password123"
 }
 
-### 7. Invalid phone
+### Invalid phone
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -76,7 +158,8 @@ Content-Type: application/json
   "phone": "abc"
 }
 
-### 8. Malformed JSON
+### Malformed registration JSON
+### Expected: 400
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -85,7 +168,8 @@ Content-Type: application/json
   "password":
 }
 
-### 9. Attempted ADMIN registration
+### Attempt arbitrary ADMIN role during public registration
+### Expected: 201 with role USER, or 409 if rerun
 POST {{host}}/api/auth/register
 Content-Type: application/json
 
@@ -97,29 +181,18 @@ Content-Type: application/json
   "role": "ADMIN"
 }
 
-### 10. Valid login and save JWT
+### Login with wrong password
+### Expected: 401
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
-  "password": "Password123"
-}
-
-> {%
-    client.global.set("auth_token", response.body.token);
-%}
-
-### 11. Wrong password
-POST {{host}}/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
+  "email": "{{userEmail}}",
   "password": "WrongPassword123"
 }
 
-### 12. Nonexistent email
+### Login with nonexistent email
+### Expected: 401
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
@@ -128,7 +201,8 @@ Content-Type: application/json
   "password": "Password123"
 }
 
-### 13. Invalid email format
+### Login with invalid email format
+### Expected: 400
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
@@ -137,22 +211,352 @@ Content-Type: application/json
   "password": "Password123"
 }
 
-### 14. Blank password
+### Login with blank password
+### Expected: 400
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
+  "email": "{{userEmail}}",
   "password": ""
 }
 
-### 15. Current user with saved JWT
-GET {{host}}/api/users/me
-Authorization: Bearer {{auth_token}}
+###############################################################################
+# 3. CURRENT USER AND JWT SECURITY
+###############################################################################
 
-### 16. Current user without JWT
+### Get current USER
+### Expected: 200 with id, email, phone, role
+GET {{host}}/api/users/me
+Authorization: Bearer {{user_token}}
+
+### Get current user without JWT
+### Expected: 401
 GET {{host}}/api/users/me
 
-### 17. Current user with invalid JWT
+### Get current user with invalid JWT
+### Expected: 401
 GET {{host}}/api/users/me
 Authorization: Bearer invalid-token
+
+### Get books without JWT
+### Expected: 401
+GET {{host}}/api/books
+
+###############################################################################
+# 4. BOOK CRUD HAPPY PATH
+###############################################################################
+
+### Get all books as USER
+### Expected: 200 summary array without description
+GET {{host}}/api/books
+Authorization: Bearer {{user_token}}
+
+> {%
+    client.test("Book list returns 200", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Book list is an array", function () {
+        client.assert(Array.isArray(response.body), "Expected an array");
+    });
+    if (Array.isArray(response.body) && response.body.length > 0) {
+        client.test("Book summary omits description", function () {
+            client.assert(response.body[0].description === undefined,
+                "Summary response should not contain description");
+        });
+    }
+%}
+
+### Create book as ADMIN and save book_id
+### Expected: 201
+POST {{host}}/api/books
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "title": "Clean Code",
+  "author": "Robert C. Martin",
+  "category": "Software Engineering",
+  "price": 29.99,
+  "description": "A practical guide to writing maintainable code.",
+  "imageUrl": "https://example.com/clean-code.jpg"
+}
+
+> {%
+    client.test("Book creation returns 201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    if (response.status === 201) {
+        client.global.set("book_id", response.body.id);
+        client.test("Created book contains detail fields", function () {
+            ["id", "title", "author", "category", "price", "description", "imageUrl"]
+                .forEach(function (field) {
+                    client.assert(response.body[field] !== undefined,
+                        "Missing response field: " + field);
+                });
+        });
+    }
+%}
+
+### Get created book as USER
+### Expected: 200
+GET {{host}}/api/books/{{book_id}}
+Authorization: Bearer {{user_token}}
+
+> {%
+    client.test("Created book is returned", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(String(response.body.id) === String(client.global.get("book_id")),
+            "Returned book ID does not match captured book_id");
+    });
+%}
+
+### Update book as ADMIN
+### Expected: 200
+PUT {{host}}/api/books/{{book_id}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "title": "Clean Code - Updated",
+  "author": "Robert C. Martin",
+  "category": "Software Engineering",
+  "price": 34.99,
+  "description": "An updated test description.",
+  "imageUrl": "https://example.com/clean-code-updated.jpg"
+}
+
+> {%
+    client.test("Book update returns 200", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.title === "Clean Code - Updated", "Title was not updated");
+        client.assert(response.body.price === 34.99, "Price was not updated");
+    });
+%}
+
+### Delete book as ADMIN
+### Expected: 204
+DELETE {{host}}/api/books/{{book_id}}
+Authorization: Bearer {{admin_token}}
+
+### Get deleted book as USER
+### Expected: 404
+GET {{host}}/api/books/{{book_id}}
+Authorization: Bearer {{user_token}}
+
+###############################################################################
+# 5. BOOK VALIDATION AND AUTHORIZATION
+###############################################################################
+
+### USER attempts to create book
+### Expected: 403 with ErrorResponse
+POST {{host}}/api/books
+Content-Type: application/json
+Authorization: Bearer {{user_token}}
+
+{
+  "title": "Forbidden Book",
+  "author": "Test Author",
+  "category": "Test",
+  "price": 10.00,
+  "description": "This request must not create a book.",
+  "imageUrl": "https://example.com/forbidden.jpg"
+}
+
+### Create invalid book as ADMIN
+### Expected: 400
+POST {{host}}/api/books
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "title": "",
+  "author": "Test Author",
+  "category": "Test",
+  "price": -1,
+  "description": "Invalid test book",
+  "imageUrl": "https://example.com/invalid.jpg"
+}
+
+### Create zero-price book as ADMIN
+### Expected: 400
+POST {{host}}/api/books
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "title": "Zero Price Book",
+  "author": "Test Author",
+  "category": "Test",
+  "price": 0,
+  "description": "Price must be greater than zero.",
+  "imageUrl": "https://example.com/zero-price.jpg"
+}
+
+### Get unknown book as USER
+### Expected: 404
+GET {{host}}/api/books/{{missingBookId}}
+Authorization: Bearer {{user_token}}
+
+### Update unknown book as ADMIN
+### Expected: 404
+PUT {{host}}/api/books/{{missingBookId}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "title": "Missing Book",
+  "author": "Test Author",
+  "category": "Test",
+  "price": 10.00,
+  "description": "This book does not exist.",
+  "imageUrl": "https://example.com/missing.jpg"
+}
+
+### Delete unknown book as ADMIN
+### Expected: 404
+DELETE {{host}}/api/books/{{missingBookId}}
+Authorization: Bearer {{admin_token}}
+
+###############################################################################
+# 6. ADMIN MANAGEMENT HAPPY PATH
+###############################################################################
+
+### Get all admins as ADMIN
+### Expected: 200
+GET {{host}}/api/admins
+Authorization: Bearer {{admin_token}}
+
+### Create ADMIN and save created_admin_id
+### Expected: 201, assigned role ADMIN
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "email": "new-admin@example.com",
+  "password": "Password123",
+  "phone": "+201001234572"
+}
+
+> {%
+    client.test("Admin creation returns 201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    if (response.status === 201) {
+        client.global.set("created_admin_id", response.body.id);
+        client.test("Created account has ADMIN role", function () {
+            client.assert(response.body.role === "ADMIN", "Expected ADMIN role");
+        });
+    }
+%}
+
+### Get all admins after creation
+### Expected: 200, list includes new-admin@example.com
+GET {{host}}/api/admins
+Authorization: Bearer {{admin_token}}
+
+### Create duplicate ADMIN
+### Expected: 409
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "email": "new-admin@example.com",
+  "password": "Password123",
+  "phone": "+201001234572"
+}
+
+### Delete created ADMIN
+### Expected: 204
+DELETE {{host}}/api/admins/{{created_admin_id}}
+Authorization: Bearer {{admin_token}}
+
+### Delete the same ADMIN again
+### Expected: 404
+DELETE {{host}}/api/admins/{{created_admin_id}}
+Authorization: Bearer {{admin_token}}
+
+###############################################################################
+# 7. ADMIN MANAGEMENT VALIDATION AND AUTHORIZATION
+###############################################################################
+
+### Get admins without JWT
+### Expected: 401
+GET {{host}}/api/admins
+
+### Get admins as USER
+### Expected: 403 with ErrorResponse
+GET {{host}}/api/admins
+Authorization: Bearer {{user_token}}
+
+### USER attempts to create ADMIN
+### Expected: 403
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{user_token}}
+
+{
+  "email": "forbidden-admin@example.com",
+  "password": "Password123",
+  "phone": "+201001234573"
+}
+
+### USER attempts to delete ADMIN
+### Expected: 403
+DELETE {{host}}/api/admins/{{missingAdminId}}
+Authorization: Bearer {{user_token}}
+
+### Create ADMIN with invalid email
+### Expected: 400
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "email": "invalid-email",
+  "password": "Password123",
+  "phone": "+201001234574"
+}
+
+### Create ADMIN with short password
+### Expected: 400
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "email": "short-admin@example.com",
+  "password": "short",
+  "phone": "+201001234575"
+}
+
+### Create ADMIN with invalid phone
+### Expected: 400
+POST {{host}}/api/admins
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "email": "phone-admin@example.com",
+  "password": "Password123",
+  "phone": "abc"
+}
+
+### Delete unknown ADMIN as ADMIN
+### Expected: 404
+DELETE {{host}}/api/admins/{{missingAdminId}}
+Authorization: Bearer {{admin_token}}
+
+###############################################################################
+# 8. SWAGGER / OPENAPI
+###############################################################################
+
+### OpenAPI JSON
+### Expected: 200
+GET {{host}}/v3/api-docs
+
+### Swagger UI
+### Expected: 200 or redirect
+GET {{host}}/swagger-ui/index.html

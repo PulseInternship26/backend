@@ -1,5 +1,6 @@
 package com.pulseinternship.bookstore.config;
 
+import com.pulseinternship.bookstore.auth.JwtAccessDeniedHandler;
 import com.pulseinternship.bookstore.auth.JwtAuthFilter;
 import com.pulseinternship.bookstore.auth.JwtAuthenticationEntryPoint;
 import com.pulseinternship.bookstore.repository.UserRepo;
@@ -26,7 +27,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             JwtAuthFilter jwtAuthFilter,
-            JwtAuthenticationEntryPoint entryPoint
+            JwtAuthenticationEntryPoint entryPoint,
+            JwtAccessDeniedHandler accessDeniedHandler
         ) throws Exception {
             http
                 .csrf(csrf -> csrf.disable())
@@ -35,6 +37,7 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(exceptions -> exceptions
                     .authenticationEntryPoint(entryPoint)
+                    .accessDeniedHandler(accessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
@@ -84,8 +87,9 @@ public class SecurityConfig {
     @Bean
     public JwtAuthFilter jwtAuthFilter(
             JwtService jwtService,
+            CustomUserDetailsService userDetailsService,
             JwtAuthenticationEntryPoint entryPoint
     ) {
-        return new JwtAuthFilter(jwtService, entryPoint);
+        return new JwtAuthFilter(jwtService, userDetailsService, entryPoint);
     }
 }

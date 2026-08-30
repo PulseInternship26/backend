@@ -1,12 +1,12 @@
 package com.pulseinternship.bookstore.service;
 
-import com.pulseinternship.bookstore.exception.EmailNotFoundException;
 import com.pulseinternship.bookstore.model.entities.User;
 import com.pulseinternship.bookstore.repository.UserRepo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
@@ -15,7 +15,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) {
         User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new EmailNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
